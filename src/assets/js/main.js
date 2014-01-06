@@ -53,7 +53,7 @@ require(['core/utils/FpsTracker', 'dom/primitives/Container', 'dom/readers/Mouse
 
                 for (var i = 0, len = balls.length; i < len; i++) {
                     balls[i].update(walls.b);
-                };
+                }
 			};
 
 			requestAnimationFrame(loop);

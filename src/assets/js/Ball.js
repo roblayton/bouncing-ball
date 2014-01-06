@@ -22,7 +22,7 @@ define(['dom/shapes/Circle'], function(Circle){
                 scope.y = bounds - parseInt(scope.height) / 2;
                 scope.set({
                     vy: scope.vy *= bounce
-                })
+                });
             }
         };
     };

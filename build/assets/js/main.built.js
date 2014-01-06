@@ -70,7 +70,7 @@ define('dom/mixins/CssMixins',[],function() {
 */
 define('dom/primitives/Elem',['dom/utils/DomSniper', 'dom/mixins/CssMixins'], function(DomSniper, CssMixins) {
     var Elem = function(options) {
-        var self = this;
+        var scope = this;
         options = options || {};
 
         // Element detection
@@ -113,21 +113,21 @@ define('dom/primitives/Elem',['dom/utils/DomSniper', 'dom/mixins/CssMixins'], fu
                     break;
             }
 
-            self[key] = value;
+            scope[key] = value;
         };
 
         var setCss = function(options) {
             for (var css in options) {
-                self.el.style[css] = options[css];
+                scope.el.style[css] = options[css];
             }
         };
 
         this.appendChild = function(target) {
-            DomSniper.appendChild(self.el, target);
+            DomSniper.appendChild(scope.el, target);
         };
 
         this.appendTo = function(target) {
-            target.appendChild(self.el);
+            target.appendChild(scope.el);
         };
         
         this.set = function(options) {
@@ -135,7 +135,7 @@ define('dom/primitives/Elem',['dom/utils/DomSniper', 'dom/mixins/CssMixins'], fu
             if (options.attr) {
                 for (var attr in options.attr) {
                     var prop = attr === 'className' ? 'class' : attr; // need className because 'class' is reserved
-                    self.el.setAttribute(prop, options.attr[attr]);
+                    scope.el.setAttribute(prop, options.attr[attr]);
                 }
             }
 
@@ -163,10 +163,10 @@ define('dom/primitives/Elem',['dom/utils/DomSniper', 'dom/mixins/CssMixins'], fu
         this.insert = function(type, target) {
             switch (type) {
                 case 'child':
-                    DomSniper.appendChild(self.el, target);
+                    DomSniper.appendChild(scope.el, target);
                     break;
                 case 'parent':
-                    DomSniper.appendChild(target, self.el);
+                    DomSniper.appendChild(target, scope.el);
                     break;
             }
         };
@@ -223,48 +223,6 @@ define('dom/primitives/Container',['dom/primitives/Elem', 'dom/utils/DomSniper']
 	return Container;
 });
 
-define('dom/sprite/Sprite',['dom/primitives/Elem'], function(Elem) {
-    var Sprite = function(src, options) {
-        var scope = this;
-        options.type = 'img';
-        Elem.call(this, options);
-
-        this.el.src = src;
-
-        // Event listeners
-        this.el.onload = function() {
-
-            scope.width = scope.el.width; 
-            scope.height = scope.el.height; 
-
-            if (options.callbakcs && options.callbacks.onLoad) {
-                options.callbacks.onLoad();
-            }
-        };
-    };
-
-    return Sprite;
-});
-
-define('proj/Arrow',['dom/sprite/Sprite'], function(Sprite){
-    var Arrow = function(options) {
-        options = options || {};
-        Sprite.call(this, 'assets/img/arrow.png', {
-            css: {
-                position: 'absolute',
-            },
-            x: options.x || (window.innerWidth / 2),
-            y: options.y || (window.innerHeight / 2),
-            insert: {
-                type: 'parent',
-                target: document.body
-            }
-        }); 
-    };
-    
-    return Arrow;    
-});
-
 define('dom/readers/MouseReader',[],function() {
 	var MouseReader = function(el, options) {
 		// Detect if the browser is IE or not.
@@ -279,7 +237,7 @@ define('dom/readers/MouseReader',[],function() {
 		var tempY = 0
 
 		// Main function to retrieve mouse x-y pos.s
-		var getMouseXY = function(evt) {
+		var onMouseMoveHandler = function(evt) {
 			if (IE) { // grab the x-y pos.s if browser is IE
 				tempX = evt.clientX + document.body.scrollLeft
 				tempY = evt.clientY + document.body.scrollTop
@@ -300,47 +258,297 @@ define('dom/readers/MouseReader',[],function() {
             }
 		}
 
+        var onMouseDownHandler = function(evt) {
+            if (options.callbacks.onMouseDown) {
+                options.callbacks.onMouseDown(evt, tempX, tempY);
+            }
+        };
+
 		// Set-up to use getMouseXY function onMouseMove
-		el.onmousemove = getMouseXY;
+		el.onmousemove = onMouseMoveHandler;
+		el.onmousedown = onMouseDownHandler;
 	};
 
 	return MouseReader;
 });
 
 
-require(['core/utils/FpsTracker', 'dom/primitives/Container', 'proj/Arrow', 'dom/readers/MouseReader'], function(FpsTracker, Container, Arrow, MouseReader) {
+/**
+ * @author alteredq / http://alteredqualia.com/
+ * @author mr.doob / http://mrdoob.com/
+ */
+
+Detector = {
+
+	canvas : !! window.CanvasRenderingContext2D,
+	webgl : ( function () { try { return !! window.WebGLRenderingContext && !! document.createElement( 'canvas' ).getContext( 'experimental-webgl' ); } catch( e ) { return false; } } )(),
+	workers : !! window.Worker,
+	fileapi : window.File && window.FileReader && window.FileList && window.Blob,
+
+	getWebGLErrorMessage : function () {
+
+		var domElement = document.createElement( 'div' );
+
+		domElement.style.fontFamily = 'monospace';
+		domElement.style.fontSize = '13px';
+		domElement.style.textAlign = 'center';
+		domElement.style.background = '#eee';
+		domElement.style.color = '#000';
+		domElement.style.padding = '1em';
+		domElement.style.width = '475px';
+		domElement.style.margin = '5em auto 0';
+
+		if ( ! this.webgl ) {
+
+			domElement.innerHTML = window.WebGLRenderingContext ? [
+				'Your graphics card does not seem to support <a href="http://khronos.org/webgl/wiki/Getting_a_WebGL_Implementation">WebGL</a>.<br />',
+				'Find out how to get it <a href="http://get.webgl.org/">here</a>.'
+			].join( '\n' ) : [
+				'Your browser does not seem to support <a href="http://khronos.org/webgl/wiki/Getting_a_WebGL_Implementation">WebGL</a>.<br/>',
+				'Find out how to get it <a href="http://get.webgl.org/">here</a>.'
+			].join( '\n' );
+
+		}
+
+		return domElement;
+
+	},
+
+	addGetWebGLMessage : function ( parameters ) {
+
+		var parent, id, domElement;
+
+		parameters = parameters || {};
+
+		parent = parameters.parent !== undefined ? parameters.parent : document.body;
+		id = parameters.id !== undefined ? parameters.id : 'oldie';
+
+		domElement = Detector.getWebGLErrorMessage();
+		domElement.id = id;
+
+		parent.appendChild( domElement );
+
+	}
+
+};
+
+define("libs/three.js/Detector", function(){});
+
+/**
+ * @class
+ * @name dom.utils.Detector
+*/
+define('dom/utils/Detector',['libs/three.js/Detector'], function() {
+	var Detector = function() {};
+
+	/**
+     * @name dom.utils.Detector#topZIndex
+     * @function
+     * @static
+     * @return {} top
+    */
+	Detector.topZIndex = function() {
+		var top = 0;
+		var pageEls = document.getElementsByTagName('*');
+
+		for (var i = 0, len = pageEls.length; i < len; i++) {
+			if (pageEls[i].style.zIndex && parseInt(pageEls[i].style.zIndex, 10) > top) {
+				top = parseInt(pageEls[i].style.zIndex, 10);
+			}
+		}
+		return top;
+	};
+
+	/**
+     * @name dom.utils.Detector#isElement
+     * @function
+     * @static
+     * @param {} obj
+     * @return {} obj instanceof HTMLElement
+    */
+	Detector.isElement = function(obj) {
+		try {
+			//Using W3 DOM2 (works for FF, Opera and Chrom)
+			return obj instanceof HTMLElement;
+		} catch(e) {
+			//Browsers not supporting W3 DOM2 don't have HTMLElement and
+			//an exception is thrown and we end up here. Testing some
+			//properties that all elements have. (works on IE7)
+			return (typeof obj === "object") && (obj.nodeType === 1) && (typeof obj.style === "object") && (typeof obj.ownerDocument === "object");
+		}
+	};
+
+	/**
+     * @name dom.utils.Detector#unit
+     * @function
+     * @static
+     * @param {} value
+     * @return {} unit
+    */
+	Detector.unit = function(value) {
+		var map = { // list of all units and their identifying string
+			pixel: "px",
+			percent: "%",
+			inch: "in",
+			cm: "cm",
+			mm: "mm",
+			point: "pt",
+			pica: "pc",
+			em: "em",
+			ex: "ex"
+		};
+
+		var unit = value.match(/\D+$/);
+		unit = unit === null ? map.pixel: unit[0];
+		return unit;
+	};
+
+	Detector.webgl = (function() {
+		return Detector.webgl;
+	})();
+
+	Detector.getUserMedia = (function() {
+		return navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia || navigator.msGetUserMedia;
+	})();
+
+	return Detector;
+});
+
+
+/**
+ * @class
+ * @name dom.shapes.Circle
+ * @requires dom.primitives.Elem.js
+ * @requires dom.utils.Detector.js
+ * @param {} options
+*/
+define('dom/shapes/Circle',['dom/primitives/Elem', 'dom/utils/Detector'], function(Elem, Detector) {
+    var Circle = function(options) {
+        var self = this;
+
+        Elem.call(this, options);
+
+        if (options.radius === undefined) {
+            throw new Error('Must define a radius');
+        }
+
+        this.unit = 'px';
+
+        this.set({
+            width: (options.radius * 2) + this.unit,
+            height: (options.radius * 2) + this.unit
+        });
+
+        // Make a mixing for this one day
+        this.el.style.borderRadius = (parseInt(options.radius, 10) * 2) + this.unit;
+        this.el.style.MoxBorderRadius = (parseInt(options.radius, 10) * 2) + this.unit;
+    };
+
+    return Circle;
+});
+
+define('proj/Ball',['dom/shapes/Circle'], function(Circle){
+    var Ball = function(options) {
+        var scope = this;
+        var bounce = -0.6;
+        var gravity = 0.4;
+
+        this.vx = 10;
+        this.vy = 10;
+
+        Circle.call(this, options);
+
+        this.update = function(bounds) {
+            scope.set({
+                vy: scope.vy + gravity 
+            });
+
+            scope.set({
+                y: scope.y + scope.vy
+            });
+
+            if ( (scope.y + parseInt(scope.height) / 2) > bounds) {
+                scope.y = bounds - parseInt(scope.height) / 2;
+                scope.set({
+                    vy: scope.vy *= bounce
+                });
+            }
+        };
+    };
+    
+    return Ball;    
+});
+
+define('proj/Walls',[],function() {
+    var Walls = function(t, r, b, l) {
+        this.t = t; 
+        this.r = r; 
+        this.b = b; 
+        this.l = l; 
+    };
+
+    return Walls;
+});
+
+require(['core/utils/FpsTracker', 'dom/primitives/Container', 'dom/readers/MouseReader', 'proj/Ball', 'proj/Walls'], function(FpsTracker, Container, MouseReader, Ball, Walls) {
 	var Master = function() {
 
 		var init = function() {
+            var balls = [];
+
 			// Fps
 			var fps = new FpsTracker();
 
 			var container = new Container({
-                css: {
-                    position: 'absolute',
-                    width: '100%',
-                    height: '100%'
-                },
+				css: {
+					position: 'absolute',
+					width: '100%',
+					height: '100%'
+				},
 				insert: {
 					type: 'parent',
 					target: document.body
 				}
 			});
 
-            var arrow = new Arrow();
-            
-            var mr = new MouseReader(document.body, {
-                callbacks: {
-                    onMouseMove: function(evt, x, y) {
-                        var dx = x - parseInt(arrow.x, 10) - (parseInt(arrow.width, 10) / 2);
-                        var dy = y - parseInt(arrow.y, 10) - (parseInt(arrow.height, 10) / 2);
-                        var rad = Math.atan2(dy, dx);
-                        arrow.set({
-                            rotation: rad * 180 / Math.PI
-                        });
+            var createBall = function(x, y) {
+
+                var ball = new Ball({
+                    radius: 50,
+                    css: {
+                        backgroundColor: '#FF0000',
+                        position: 'absolute'
+                    },
+                    x: x,
+                    y: y,
+                    insert: {
+                        type: 'parent',
+                        target: document.body
                     }
+                });
+
+                balls.push(ball);
+            };
+
+			var walls = new Walls(0, window.innerWidth, window.innerHeight, - window.innerWidth);
+
+			var mr = new MouseReader(document.body, {
+				callbacks: {
+					onMouseDown: function(evt, x, y) {
+                        createBall(x, y);
+					}
+				}
+			});
+
+			var loop = function() {
+				requestAnimationFrame(loop);
+
+                for (var i = 0, len = balls.length; i < len; i++) {
+                    balls[i].update(walls.b);
                 }
-            });
+			};
+
+			requestAnimationFrame(loop);
 		};
 
 		init();
